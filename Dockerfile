@@ -1,8 +1,7 @@
-FROM arangodb:3.0
+FROM arangodb/arangodb:3.0.1
 
 ADD ./run.sh /app/
 
-EXPOSE 5007
-EXPOSE 8259
+EXPOSE 8529
 
 ENTRYPOINT ["/app/run.sh"]

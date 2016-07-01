@@ -5,6 +5,8 @@ ETCD_PREFIX=/pulcy/arangodb3
 ROLE=primary
 LOGLEVEL=info
 
+export ARANGO_NO_AUTH=1
+
 need_etcd() {
     if [ -z ${ETCDCTL} ]; then
         echo etcdctl is not found
@@ -73,35 +75,62 @@ run_agency() {
     fi
     exec arangod \
         --log.level "${LOGLEVEL}" \
-        --server.endpoint "tcp://0.0.0.0:$PORT" \
+        --server.endpoint "tcp://0.0.0.0:8529" \
         --server.authentication false \
+        --cluster.my-address "tcp://$HOST:$PORT" \
         --agency.id "${INSTANCE_ID}" \
         --agency.size 3 \
         --agency.supervision true \
+        --agency.wait-for-sync false \
         $NOTIFY $ENDPOINTS
 }
 
+wait_for_agency() {
+    echo "Waiting for agency..."
+    while true ; do
+        has_ready_agents=""
+        agents=$(els ${ETCD_PREFIX}/agents/)
+        for agentid in ${agents}; do
+            addr=$(eget $agentid)
+            curl -s -f -X GET "http://$addr/_api/version" > /dev/null 2>&1
+            if [ "$?" != "0" ] ; then
+                echo Server on address $addr does not answer yet.
+            else
+                echo Server on address $addr is ready for business.
+                has_ready_agents="1"
+                break
+            fi
+        done
+        if [ ! -z "$has_ready_agents" ]; then
+            break
+        fi
+        sleep 1
+    done
+}
+
 run_primary() {
+    wait_for_agency
     get_agency_endpoints "--cluster.agency-endpoint"
     exec arangod \
-        --server.authentication=false
-        --server.endpoint "tcp://0.0.0.0:$PORT" \
+        --log.level "${LOGLEVEL}" \
+        --server.authentication false \
+        --server.endpoint "tcp://0.0.0.0:8529" \
         --cluster.my-address "tcp://$HOST:$PORT" \
         --cluster.my-local-info "primary${INSTANCE_ID}" \
-        --cluster.my-role PRIMARY \
-        --log.level "${LOGLEVEL}" \
+        --cluster.my-role "PRIMARY" \
         $ENDPOINTS
 }
 
 run_coordinator() {
+    wait_for_agency
     get_agency_endpoints "--cluster.agency-endpoint"
     exec arangod \
-        --server.authentication=false
-        --server.endpoint "tcp://0.0.0.0:$PORT" \
+        --log.level "${LOGLEVEL}" \
+        --server.authentication false \
+        --server.endpoint "tcp://0.0.0.0:8529" \
         --cluster.my-address "tcp://$HOST:$PORT" \
         --cluster.my-local-info "coordinator${INSTANCE_ID}" \
-        --cluster.my-role COORDINATOR \
-        --log.level "${LOGLEVEL}" \
+        --cluster.my-role "COORDINATOR" \
         $ENDPOINTS
 }
 
