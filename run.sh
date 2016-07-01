@@ -1,22 +1,9 @@
 #!/bin/bash
 
-DOCKER=$(which docker)
 ETCDCTL=$(which etcdctl)
 ETCD_PREFIX=/pulcy/arangodb3
 ROLE=primary
-
-need_docker() {
-    if [ -z ${DOCKER} ]; then
-        echo docker is not found
-        exit 1
-    fi
-    if [ -z ${CONTAINER} ]; then
-        echo CONTAINER is empty
-        exit 1
-    fi
-    PORT=$(${DOCKER} port ${CONTAINER} 8259/tcp | cut -d ':' -f2)
-    echo "Externally visible on '${HOST}:${PORT}'"
-}
+LOGLEVEL=info
 
 need_etcd() {
     if [ -z ${ETCDCTL} ]; then
@@ -27,6 +14,11 @@ need_etcd() {
         echo ETCD_URL is empty
         exit 1
     fi
+}
+
+eget() {
+    local key=$1
+    ${ETCDCTL} --endpoints=${ETCD_URL} get $key
 }
 
 eset() {
@@ -54,64 +46,73 @@ need_host() {
         echo HOST is empty
         exit 1
     fi
+    if [ -z ${PORT} ]; then
+        echo PORT is empty
+        exit 1
+    fi
 }
 
 get_agency_endpoints() {
     local key=$1
     agents=$(els ${ETCD_PREFIX}/agents/)
     ENDPOINTS=""
-    for a in ${other}; do
-        ENDPOINTS="$ENDPOINTS $key tcp://$a"
+    for agentid in ${agents}; do
+        addr=$(eget $agentid)
+        ENDPOINTS="$ENDPOINTS $key tcp://$addr"
     done
     echo "Using endpoints: $ENDPOINTS"
 }
 
 run_agency() {
-    eset "${ETCD_PREFIX}/agents/agency${INSTANCE_ID}" "$HOST:5007"
-    get_agency_endpoints "--agency.endpoint"
+    eset "${ETCD_PREFIX}/agents/agency${INSTANCE_ID}" "$HOST:$PORT"
+    ENDPOINTS=""
+    NOTIFY=""
+    if [ ${INSTANCE} -eq 3 ]; then
+        get_agency_endpoints "--agency.endpoint"
+        NOTIFY="--agency.notify true"
+    fi
     exec arangod \
-        --server.endpoint "tcp://0.0.0.0:5007" \
+        --log.level "${LOGLEVEL}" \
+        --server.endpoint "tcp://0.0.0.0:$PORT" \
         --server.authentication false \
         --agency.id "${INSTANCE_ID}" \
         --agency.size 3 \
         --agency.supervision true \
-        $ENDPOINTS \
-        --agency.notify true \
-        "agency${INSTANCE_ID}"
+        $NOTIFY $ENDPOINTS
 }
 
 run_primary() {
     get_agency_endpoints "--cluster.agency-endpoint"
     exec arangod \
         --server.authentication=false
-        --server.endpoint "tcp://0.0.0.0:8529" \
+        --server.endpoint "tcp://0.0.0.0:$PORT" \
         --cluster.my-address "tcp://$HOST:$PORT" \
         --cluster.my-local-info "primary${INSTANCE_ID}" \
         --cluster.my-role PRIMARY \
-        $ENDPOINTS \
-        "primary${INSTANCE_ID}"
+        --log.level "${LOGLEVEL}" \
+        $ENDPOINTS
 }
 
 run_coordinator() {
     get_agency_endpoints "--cluster.agency-endpoint"
     exec arangod \
         --server.authentication=false
-        --server.endpoint "tcp://0.0.0.0:8529" \
+        --server.endpoint "tcp://0.0.0.0:$PORT" \
         --cluster.my-address "tcp://$HOST:$PORT" \
         --cluster.my-local-info "coordinator${INSTANCE_ID}" \
         --cluster.my-role COORDINATOR \
-        $ENDPOINTS \
-        "coordinator${INSTANCE_ID}"
+        --log.level "${LOGLEVEL}" \
+        $ENDPOINTS
 }
 
 for i in "$@"
 do
 case $i in
-    --container=*)
-    CONTAINER="${i#*=}"
-    ;;
     --host=*)
     HOST="${i#*=}"
+    ;;
+    --port=*)
+    PORT="${i#*=}"
     ;;
     --instance=*)
     INSTANCE="${i#*=}"
@@ -125,13 +126,15 @@ case $i in
     --etcd-url=*)
     ETCD_URL="${i#*=}"
     ;;
+    --log-level=*)
+    LOGLEVEL="${i#*=}"
+    ;;
     *)
     echo "unknown option '${i}'"
     ;;
 esac
 done
 
-need_docker
 need_etcd
 need_host
 need_instance

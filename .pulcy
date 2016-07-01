@@ -1,0 +1,5 @@
+{
+	"registry": "pulcy",
+	"image": "arangodb-cluster",
+	"tag-latest": true
+}
