@@ -4,6 +4,7 @@ ETCDCTL=$(which etcdctl)
 ETCD_PREFIX=/pulcy/arangodb3
 ROLE=primary
 LOGLEVEL=info
+DATADIR=/var/lib/arangodb3
 
 export ARANGO_NO_AUTH=1
 
@@ -65,7 +66,59 @@ get_agency_endpoints() {
     echo "Using endpoints: $ENDPOINTS"
 }
 
+init_database() {
+    if [ ! -f $DATADIR/SERVER ]; then
+        echo "Initializing database...Hang on..."
+
+        arangod \
+            --server.statistics false \
+            --frontend.version-check false \
+            --server.authentication false \
+            --server.endpoint=tcp://127.0.0.1:3333 \
+            --database.directory $DATADIR \
+            --log.file /tmp/init-log \
+            --log.foreground-tty false &
+        pid="$!"
+        echo "arangod pid: $pid"
+
+        counter=0
+        ARANGO_UP=""
+        while [ -z "$ARANGO_UP" ];do
+            sleep 1
+
+            if [ "$counter" -gt 100 ];then
+                echo "ArangoDB didn't start correctly during init"
+                cat /tmp/init-log
+                exit 1
+            fi
+            let counter=counter+1
+            version=$(curl --noproxy localhost -s http://localhost:3333/_api/version 2>/dev/null)
+            if [ ! -z "$version" ]; then
+                ARANGO_UP=1
+                echo "Arango is up: $version"
+            fi
+        done
+
+        for f in /docker-entrypoint-initdb.d/*; do
+            case "$f" in
+                *.sh)     echo "$0: running $f"; . "$f" ;;
+                *.js)     echo "$0: running $f"; arangosh --javascript.execute "$f" ;;
+                */dumps)    echo "$0: restoring databases"; for d in $f/*; do echo "restoring $d";arangorestore --server.endpoint=tcp://127.0.0.1:8529 --create-database true --include-system-collections true --input-directory $d; done; echo ;;
+            esac
+        done
+
+        echo "Stopping init arangod with pid $pid"
+        if ! kill -s TERM "$pid" || ! wait "$pid"; then
+            echo >&2 'ArangoDB Init failed.'
+            exit 1
+        fi
+
+        echo "Database initialized...Starting System..."
+    fi
+}
+
 run_agency() {
+    init_database
     eset "${ETCD_PREFIX}/agents/agency${INSTANCE_ID}" "$HOST:$PORT"
     ENDPOINTS=""
     NOTIFY=""
@@ -74,9 +127,12 @@ run_agency() {
         NOTIFY="--agency.notify true"
     fi
     exec arangod \
+        --frontend.version-check false \
         --log.level "${LOGLEVEL}" \
+        --database.directory $DATADIR \
         --server.endpoint "tcp://0.0.0.0:8529" \
         --server.authentication false \
+        --server.statistics false \
         --cluster.my-address "tcp://$HOST:$PORT" \
         --agency.id "${INSTANCE_ID}" \
         --agency.size 3 \
@@ -109,12 +165,16 @@ wait_for_agency() {
 }
 
 run_primary() {
+    init_database
     wait_for_agency
     get_agency_endpoints "--cluster.agency-endpoint"
     exec arangod \
+        --frontend.version-check false \
         --log.level "${LOGLEVEL}" \
-        --server.authentication false \
+        --database.directory $DATADIR \
+        --server.authentication=false \
         --server.endpoint "tcp://0.0.0.0:8529" \
+        --server.statistics false \
         --cluster.my-address "tcp://$HOST:$PORT" \
         --cluster.my-local-info "primary${INSTANCE_ID}" \
         --cluster.my-role "PRIMARY" \
@@ -122,13 +182,17 @@ run_primary() {
 }
 
 run_coordinator() {
+    init_database
     wait_for_agency
     get_agency_endpoints "--cluster.agency-endpoint"
     exec arangod \
-        --log.level "${LOGLEVEL}" \
+        --frontend.version-check false \
+        --log.level="${LOGLEVEL}" \
+        --database.directory $DATADIR \
         --server.authentication false \
-        --server.endpoint "tcp://0.0.0.0:8529" \
-        --cluster.my-address "tcp://$HOST:$PORT" \
+        --server.endpoint="tcp://0.0.0.0:8529" \
+        --server.statistics false \
+        --cluster.my-address="tcp://$HOST:$PORT" \
         --cluster.my-local-info "coordinator${INSTANCE_ID}" \
         --cluster.my-role "COORDINATOR" \
         $ENDPOINTS
@@ -167,6 +231,11 @@ done
 need_etcd
 need_host
 need_instance
+
+mkdir -p $DATADIR
+mkdir -p /var/lib/arangodb3-apps
+chown -R arangodb $DATADIR
+chown -R arangodb /var/lib/arangodb3-apps
 
 case ${ROLE} in
     agency)

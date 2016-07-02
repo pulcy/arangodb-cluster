@@ -23,6 +23,7 @@ job "arangodb3_sample" {
                 "--etcd-prefix=/pulcy/arangodb3/sample",
                 "--etcd-url=http://{{private_ipv4}}:2379",
             ]
+            docker-args = ["--add-host", "www.arangodb.com:127.0.0.1"]
         }
     }
 
@@ -49,6 +50,7 @@ job "arangodb3_sample" {
                 "--etcd-prefix=/pulcy/arangodb3/sample",
                 "--etcd-url=http://{{private_ipv4}}:2379",
             ]
+            docker-args = ["--add-host", "www.arangodb.com:127.0.0.1"]
         }
 
         task "coordinator" {
@@ -68,6 +70,7 @@ job "arangodb3_sample" {
                 "--etcd-prefix=/pulcy/arangodb3/sample",
                 "--etcd-url=http://{{private_ipv4}}:2379",
             ]
+            docker-args = ["--add-host", "www.arangodb.com:127.0.0.1"]
         }
     }
 }
