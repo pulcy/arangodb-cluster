@@ -137,7 +137,7 @@ run_agency() {
         --agency.id "${INSTANCE_ID}" \
         --agency.size 3 \
         --agency.supervision true \
-        --agency.wait-for-sync false \
+        --agency.wait-for-sync true \
         $NOTIFY $ENDPOINTS
 }
 
