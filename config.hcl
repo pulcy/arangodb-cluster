@@ -64,7 +64,7 @@ job "arangodb3_sample" {
             args = [
                 "--log-level=info",
                 "--host={{private_ipv4}}",
-                "--port=5008",
+                "--port=5009",
                 "--instance=${instance}",
                 "--role=coordinator",
                 "--etcd-prefix=/pulcy/arangodb3/sample",
