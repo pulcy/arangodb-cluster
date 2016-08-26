@@ -5,6 +5,7 @@ ETCD_PREFIX=/pulcy/arangodb3
 ROLE=primary
 LOGLEVEL=info
 DATADIR=/var/lib/arangodb3
+STATISTICS=false
 
 export ARANGO_NO_AUTH=1
 
@@ -132,7 +133,7 @@ run_agency() {
         --database.directory $DATADIR \
         --server.endpoint "tcp://0.0.0.0:8529" \
         --server.authentication false \
-        --server.statistics false \
+        --server.statistics="${STATISTICS}" \
         --cluster.my-address "tcp://$HOST:$PORT" \
         --agency.id "${INSTANCE_ID}" \
         --agency.size 3 \
@@ -174,7 +175,7 @@ run_primary() {
         --database.directory $DATADIR \
         --server.authentication=false \
         --server.endpoint "tcp://0.0.0.0:8529" \
-        --server.statistics false \
+        --server.statistics="${STATISTICS}" \
         --cluster.my-address "tcp://$HOST:$PORT" \
         --cluster.my-local-info "primary${INSTANCE_ID}" \
         --cluster.my-role "PRIMARY" \
@@ -191,7 +192,7 @@ run_coordinator() {
         --database.directory $DATADIR \
         --server.authentication false \
         --server.endpoint="tcp://0.0.0.0:8529" \
-        --server.statistics false \
+        --server.statistics="${STATISTICS}" \
         --cluster.my-address="tcp://$HOST:$PORT" \
         --cluster.my-local-info "coordinator${INSTANCE_ID}" \
         --cluster.my-role "COORDINATOR" \
@@ -221,6 +222,9 @@ case $i in
     ;;
     --log-level=*)
     LOGLEVEL="${i#*=}"
+    ;;
+    --statistics=*)
+    STATISTICS="${i#*=}"
     ;;
     *)
     echo "unknown option '${i}'"
