@@ -1,4 +1,4 @@
-FROM arangodb/arangodb:3.0.5
+FROM arangodb:3.0.5
 
 ADD ./run.sh /app/
 

@@ -68,6 +68,9 @@ get_agency_endpoints() {
 }
 
 init_database() {
+    chown -R arangodb /var/lib/arangodb3
+    chown -R arangodb /var/lib/arangodb3-apps
+
     if [ ! -f $DATADIR/SERVER ]; then
         echo "Initializing database...Hang on..."
 
@@ -123,15 +126,15 @@ run_agency() {
     eset "${ETCD_PREFIX}/agents/agency${INSTANCE_ID}" "$HOST:$PORT"
     ENDPOINTS=""
     NOTIFY=""
-    if [ ${INSTANCE} -eq 3 ]; then
+    #if [ ${INSTANCE} -eq 3 ]; then
         get_agency_endpoints "--agency.endpoint"
         NOTIFY="--agency.notify true"
-    fi
+    #fi
     exec arangod \
         --frontend.version-check false \
         --log.level "${LOGLEVEL}" \
         --database.directory $DATADIR \
-        --server.endpoint "tcp://0.0.0.0:8529" \
+        --server.endpoint "http+tcp://0.0.0.0:8529" \
         --server.authentication false \
         --server.statistics="${STATISTICS}" \
         --cluster.my-address "tcp://$HOST:$PORT" \
@@ -174,7 +177,7 @@ run_primary() {
         --log.level "${LOGLEVEL}" \
         --database.directory $DATADIR \
         --server.authentication=false \
-        --server.endpoint "tcp://0.0.0.0:8529" \
+        --server.endpoint "http+tcp://0.0.0.0:8529" \
         --server.statistics="${STATISTICS}" \
         --cluster.my-address "tcp://$HOST:$PORT" \
         --cluster.my-local-info "primary${INSTANCE_ID}" \
@@ -191,7 +194,7 @@ run_coordinator() {
         --log.level="${LOGLEVEL}" \
         --database.directory $DATADIR \
         --server.authentication false \
-        --server.endpoint="tcp://0.0.0.0:8529" \
+        --server.endpoint="http+tcp://0.0.0.0:8529" \
         --server.statistics="${STATISTICS}" \
         --cluster.my-address="tcp://$HOST:$PORT" \
         --cluster.my-local-info "coordinator${INSTANCE_ID}" \
