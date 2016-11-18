@@ -128,7 +128,7 @@ run_agency() {
     NOTIFY=""
     #if [ ${INSTANCE} -eq 3 ]; then
         get_agency_endpoints "--agency.endpoint"
-        NOTIFY="--agency.notify true"
+        #NOTIFY="--agency.notify true"
     #fi
     exec arangod \
         --frontend.version-check false \
@@ -137,9 +137,9 @@ run_agency() {
         --server.endpoint "http+tcp://0.0.0.0:8529" \
         --server.authentication false \
         --server.statistics="${STATISTICS}" \
-        --cluster.my-address "tcp://$HOST:$PORT" \
-        --agency.id "${INSTANCE_ID}" \
         --agency.size 3 \
+        --agency.activate true \
+        --agency.my-address "tcp://$HOST:$PORT" \
         --agency.supervision true \
         --agency.wait-for-sync true \
         $NOTIFY $ENDPOINTS

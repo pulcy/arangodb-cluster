@@ -21,7 +21,7 @@ job "arangodb3_sample" {
                 "--instance=${instance}",
                 "--role=agency",
                 "--etcd-prefix=/pulcy/arangodb3/sample",
-                "--etcd-url=http://{{private_ipv4}}:2379",
+                "--etcd-url=${etcd_endpoints}",
             ]
             docker-args = ["--add-host", "www.arangodb.com:127.0.0.1"]
         }
@@ -30,8 +30,8 @@ job "arangodb3_sample" {
     group "server" {
         count = 2
         constraint {
-            attribute = "meta.arangodb"
-            value = "1"
+            attribute = "meta.worker"
+            value = "true"
         }
 
         task "db" {
@@ -48,7 +48,7 @@ job "arangodb3_sample" {
                 "--instance=${instance}",
                 "--role=primary",
                 "--etcd-prefix=/pulcy/arangodb3/sample",
-                "--etcd-url=http://{{private_ipv4}}:2379",
+                "--etcd-url=${etcd_endpoints}",
             ]
             docker-args = ["--add-host", "www.arangodb.com:127.0.0.1"]
         }
@@ -68,7 +68,7 @@ job "arangodb3_sample" {
                 "--instance=${instance}",
                 "--role=coordinator",
                 "--etcd-prefix=/pulcy/arangodb3/sample",
-                "--etcd-url=http://{{private_ipv4}}:2379",
+                "--etcd-url=${etcd_endpoints}",
             ]
             docker-args = ["--add-host", "www.arangodb.com:127.0.0.1"]
         }
